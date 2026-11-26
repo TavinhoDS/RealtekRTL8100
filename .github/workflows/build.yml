@@ -1,0 +1,39 @@
+name: Build RealtekRTL8100
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15-intel
+    timeout-minutes: 20
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Build kext (x86_64, Release)
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcodebuild -project RealtekRTL8100.xcodeproj -configuration Release \
+            ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO \
+            SYMROOT="$PWD/build" build
+          kext=$(find build -name 'RealtekRTL8100.kext' -type d | head -1)
+          plutil -lint "$kext/Contents/Info.plist"
+          lipo -info "$kext/Contents/MacOS/RealtekRTL8100"
+          mkdir -p dist
+          ditto -c -k --keepParent "$kext" dist/RealtekRTL8100-x86_64.zip
+          shasum -a 256 dist/RealtekRTL8100-x86_64.zip | tee dist/RealtekRTL8100-x86_64.zip.sha256
+
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: RealtekRTL8100-x86_64
+          path: dist/*
+          retention-days: 14
